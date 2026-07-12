@@ -1,5 +1,6 @@
 import fp from "fastify-plugin";
-import { eq, isNull } from "drizzle-orm";
+import type { FastifyRequest } from "fastify";
+import { and, eq, isNull } from "drizzle-orm";
 import { apiKeys } from "../../db/schema.js";
 import { hashApiKey, safeEqual } from "../../core/api-key.js";
 
@@ -32,7 +33,7 @@ export const authPlugin = fp(async (app) => {
         keyHash: apiKeys.keyHash
       })
       .from(apiKeys)
-      .where(eq(apiKeys.keyHash, keyHash))
+      .where(and(eq(apiKeys.keyHash, keyHash), isNull(apiKeys.revokedAt)))
       .limit(1);
 
     if (!record || !safeEqual(record.keyHash, keyHash)) {

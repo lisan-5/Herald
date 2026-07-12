@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import helmet from "@fastify/helmet";
+import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import Fastify from "fastify";
@@ -28,6 +29,7 @@ export async function buildApp(config: Config) {
   app.setSerializerCompiler(serializerCompiler);
 
   await app.register(helmet);
+  await app.register(sensible);
   await app.register(swagger, {
     openapi: {
       info: {
