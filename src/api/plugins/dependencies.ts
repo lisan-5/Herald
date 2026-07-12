@@ -1,9 +1,11 @@
+import type { Queue } from "bullmq";
 import fp from "fastify-plugin";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import Redis from "ioredis";
 import pg from "pg";
 import type { Config } from "../../config.js";
 import * as schema from "../../db/schema.js";
+import { createDeliveryQueue, type DeliveryJobData } from "../../queue/queues.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -11,6 +13,7 @@ declare module "fastify" {
     pgPool: pg.Pool;
     pg: NodePgDatabase<typeof schema>;
     redis: Redis;
+    deliveryQueue: Queue<DeliveryJobData>;
   }
 }
 
@@ -20,13 +23,16 @@ export const dependenciesPlugin = fp<{ config: Config }>(async (app, { config })
   const redis = new Redis(config.REDIS_URL, {
     maxRetriesPerRequest: null
   });
+  const deliveryQueue = createDeliveryQueue(redis);
 
   app.decorate("config", config);
   app.decorate("pgPool", pgPool);
   app.decorate("pg", db);
   app.decorate("redis", redis);
+  app.decorate("deliveryQueue", deliveryQueue);
 
   app.addHook("onClose", async () => {
+    await deliveryQueue.close();
     await redis.quit();
     await pgPool.end();
   });

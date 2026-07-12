@@ -3,6 +3,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { matchesAnyEventType } from "../../core/event-types.js";
 import { deliveries, endpoints, events } from "../../db/schema.js";
+import { enqueueDelivery } from "../../queue/queues.js";
 
 const publishBodySchema = z.object({
   event_type: z.string().min(1).max(200),
@@ -79,22 +80,33 @@ export const eventRoutes: FastifyPluginAsyncZod = async (app) => {
           matchesAnyEventType(endpoint.eventTypes, request.body.event_type)
         );
 
-        if (matchingEndpoints.length > 0) {
-          await tx.insert(deliveries).values(
-            matchingEndpoints.map((endpoint) => ({
-              eventId: event.id,
-              endpointId: endpoint.id,
-              status: "pending",
-              nextAttemptAt: new Date()
-            }))
-          );
-        }
+        const insertedDeliveries =
+          matchingEndpoints.length > 0
+            ? await tx
+                .insert(deliveries)
+                .values(
+                  matchingEndpoints.map((endpoint) => ({
+                    eventId: event.id,
+                    endpointId: endpoint.id,
+                    status: "pending",
+                    nextAttemptAt: new Date()
+                  }))
+              )
+              .returning({ id: deliveries.id })
+            : [];
 
         return {
           eventId: event.id,
-          deliveriesCreated: matchingEndpoints.length
+          deliveriesCreated: matchingEndpoints.length,
+          deliveryIds: insertedDeliveries.map((delivery) => delivery.id)
         };
       });
+
+      await Promise.all(
+        result.deliveryIds.map((deliveryId) =>
+          enqueueDelivery(app.deliveryQueue, { deliveryId, attemptNo: 1 })
+        )
+      );
 
       return reply.code(202).send({
         event_id: result.eventId,
