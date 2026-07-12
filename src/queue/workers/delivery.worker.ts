@@ -9,6 +9,7 @@ import { retryDelayMs } from "../../core/backoff.js";
 import { buildSignatureHeader } from "../../core/signature.js";
 import * as schema from "../../db/schema.js";
 import { deliveries, deliveryAttempts, endpoints, events } from "../../db/schema.js";
+import { assertPublicWebhookUrl, isSsrfBlockedError } from "../../lib/ssrf-guard.js";
 import {
   createDeliveryQueue,
   DELIVERY_QUEUE_NAME,
@@ -26,7 +27,7 @@ type ProcessDeliveryDependencies = {
 };
 
 type DeliveryResult = {
-  outcome: "success" | "http_error" | "timeout" | "conn_error";
+  outcome: "success" | "http_error" | "timeout" | "conn_error" | "ssrf_blocked";
   responseStatus: number | null;
   responseBody: string | null;
   error: string | null;
@@ -158,6 +159,8 @@ async function sendWebhook(
   const timestamp = Math.floor(Date.now() / 1000);
 
   try {
+    await assertPublicWebhookUrl(delivery.url);
+
     const response = await fetch(delivery.url, {
       method: "POST",
       redirect: "manual",
@@ -187,7 +190,11 @@ async function sendWebhook(
     const name = error instanceof Error ? error.name : "Error";
 
     return {
-      outcome: name === "TimeoutError" ? "timeout" : "conn_error",
+      outcome: isSsrfBlockedError(error)
+        ? "ssrf_blocked"
+        : name === "TimeoutError"
+          ? "timeout"
+          : "conn_error",
       responseStatus: null,
       responseBody: null,
       error: name,

@@ -3,6 +3,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { generateEndpointSecret } from "../../core/api-key.js";
 import { endpoints } from "../../db/schema.js";
+import { assertPublicWebhookUrl, isSsrfBlockedError } from "../../lib/ssrf-guard.js";
 
 const endpointResponseSchema = z.object({
   id: z.string().uuid(),
@@ -63,6 +64,16 @@ export const endpointRoutes: FastifyPluginAsyncZod = async (app) => {
       }
     },
     async (request, reply) => {
+      try {
+        await assertPublicWebhookUrl(request.body.url);
+      } catch (error) {
+        if (isSsrfBlockedError(error)) {
+          throw app.httpErrors.badRequest(error.message);
+        }
+
+        throw error;
+      }
+
       const secret = generateEndpointSecret();
       const [endpoint] = await app.pg
         .insert(endpoints)
