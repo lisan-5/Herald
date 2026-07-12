@@ -14,6 +14,7 @@ import type { Config } from "./config.js";
 import { healthRoutes } from "./api/routes/health.js";
 import { authPlugin } from "./api/plugins/auth.js";
 import { dependenciesPlugin } from "./api/plugins/dependencies.js";
+import { metricsPlugin } from "./api/plugins/metrics.js";
 import { deliveryRoutes } from "./api/routes/deliveries.js";
 import { endpointRoutes } from "./api/routes/endpoints.js";
 import { eventRoutes } from "./api/routes/events.js";
@@ -46,6 +47,7 @@ export async function buildApp(config: Config) {
   });
 
   await app.register(dependenciesPlugin, { config });
+  await app.register(metricsPlugin);
   await app.register(authPlugin);
   await app.register(healthRoutes);
   await app.register(

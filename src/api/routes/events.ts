@@ -108,6 +108,9 @@ export const eventRoutes: FastifyPluginAsyncZod = async (app) => {
         )
       );
 
+      app.metrics.eventsIngested.inc({ event_type: request.body.event_type });
+      app.metrics.deliveriesTotal.inc({ status: "pending" }, result.deliveriesCreated);
+
       return reply.code(202).send({
         event_id: result.eventId,
         deliveries_created: result.deliveriesCreated

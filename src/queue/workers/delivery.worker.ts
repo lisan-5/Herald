@@ -82,6 +82,16 @@ export async function processDelivery({
 
   if (result.outcome === "success") {
     await markSucceeded(db, delivery.deliveryId, delivery.endpointId);
+    console.log(
+      JSON.stringify({
+        delivery_id: delivery.deliveryId,
+        endpoint_id: delivery.endpointId,
+        attempt_no: attemptNo,
+        status: "succeeded",
+        latency_ms: result.latencyMs,
+        outcome: result.outcome
+      })
+    );
     return;
   }
 
@@ -125,6 +135,17 @@ export async function processDelivery({
     queue,
     { deliveryId: delivery.deliveryId, attemptNo: attemptNo + 1 },
     delayMs
+  );
+
+  console.log(
+    JSON.stringify({
+      delivery_id: delivery.deliveryId,
+      endpoint_id: delivery.endpointId,
+      attempt_no: attemptNo,
+      status: "failed",
+      latency_ms: result.latencyMs,
+      outcome: result.outcome
+    })
   );
 }
 
